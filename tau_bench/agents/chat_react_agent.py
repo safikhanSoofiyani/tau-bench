@@ -23,6 +23,7 @@ class ChatReActAgent(Agent):
         provider: str,
         use_reasoning: bool = True,
         temperature: float = 0.0,
+        custom_config: Optional[dict] = None,
     ) -> None:
         instruction = REACT_INSTRUCTION if use_reasoning else ACT_INSTRUCTION
         self.prompt = (
@@ -33,6 +34,7 @@ class ChatReActAgent(Agent):
         self.temperature = temperature
         self.use_reasoning = use_reasoning
         self.tools_info = tools_info
+        self.custom_config = custom_config or {}
 
     def generate_next_step(
         self, messages: List[Dict[str, Any]]
@@ -42,6 +44,7 @@ class ChatReActAgent(Agent):
             custom_llm_provider=self.provider,
             messages=messages,
             temperature=self.temperature,
+            **self.custom_config,
         )
         message = res.choices[0].message
         action_str = message.content.split("Action:")[-1].strip()

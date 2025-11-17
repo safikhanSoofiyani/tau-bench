@@ -17,6 +17,7 @@ class MockAirlineDomainEnv(Env):
         user_provider: Optional[str] = None,
         task_split: str = "test",
         task_index: Optional[int] = None,
+        custom_config: Optional[dict] = None,
     ):
         match task_split:
             case "test":
@@ -33,5 +34,6 @@ class MockAirlineDomainEnv(Env):
             user_model=user_model,
             user_provider=user_provider,
             task_index=task_index,
+            custom_config=custom_config,
         )
         self.terminate_tools = ["transfer_to_human_agents"]

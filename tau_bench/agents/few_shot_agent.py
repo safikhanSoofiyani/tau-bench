@@ -20,11 +20,13 @@ class FewShotToolCallingAgent(Agent):
         few_shot_displays: List[str],
         temperature: float = 0.0,
         num_few_shots: int = 5,
+        custom_config: Optional[dict] = None,
     ):
         self.tools_info = tools_info
         self.wiki = wiki
         self.model = model
         self.provider = provider
+        self.custom_config = custom_config or {}
         if len(few_shot_displays) == 0:
             raise ValueError("Few shot displays are empty")
         elif len(few_shot_displays) < num_few_shots:
@@ -53,6 +55,7 @@ class FewShotToolCallingAgent(Agent):
                 custom_llm_provider=self.provider,
                 tools=self.tools_info,
                 temperature=self.temperature,
+                **self.custom_config,
             )
             next_message = res.choices[0].message.model_dump()
             total_cost += res._hidden_params["response_cost"]

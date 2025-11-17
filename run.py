@@ -1,11 +1,17 @@
 # Copyright Sierra
 
 import argparse
+import json
 from tau_bench.types import RunConfig
 from tau_bench.run import run
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
 
+
+def parse_config(config_path: str):
+    with open(config_path, "r") as f:
+        config_dict = json.load(f)
+    return config_dict
 
 def parse_args() -> RunConfig:
     parser = argparse.ArgumentParser()
@@ -69,8 +75,10 @@ def parse_args() -> RunConfig:
     parser.add_argument("--shuffle", type=int, default=0)
     parser.add_argument("--user-strategy", type=str, default="llm", choices=[item.value for item in UserStrategy])
     parser.add_argument("--few-shot-displays-path", type=str, help="Path to a jsonlines file containing few shot displays")
+    parser.add_argument("--custom-configs", type=str, help="Path to a json file containing custom model configs")
     args = parser.parse_args()
     print(args)
+    custom_config = parse_config(args.custom_configs) if args.custom_configs else {}
     return RunConfig(
         model_provider=args.model_provider,
         user_model_provider=args.user_model_provider,
@@ -90,6 +98,7 @@ def parse_args() -> RunConfig:
         shuffle=args.shuffle,
         user_strategy=args.user_strategy,
         few_shot_displays_path=args.few_shot_displays_path,
+        custom_config=custom_config,
     )
 
 

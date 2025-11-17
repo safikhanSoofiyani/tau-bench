@@ -6,7 +6,7 @@ import random
 import traceback
 from math import comb
 import multiprocessing
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
@@ -15,6 +15,18 @@ from tau_bench.agents.base import Agent
 from tau_bench.types import EnvRunResult, RunConfig
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
+
+def parse_custom_config(custom_config: Dict[str, Any]):
+    user_config = dict()
+    assistant_config = dict()
+    for key, value in custom_config.items():
+        if key.startswith("user_model_"):
+            user_config[key[len("user_model_"):]] = value
+        else:
+            assistant_config[key] = value
+            
+    return user_config, assistant_config
+
 
 
 def run(config: RunConfig) -> List[EnvRunResult]:
@@ -27,9 +39,13 @@ def run(config: RunConfig) -> List[EnvRunResult]:
 
     random.seed(config.seed)
     time_str = datetime.now().strftime("%m%d%H%M%S")
-    ckpt_path = f"{config.log_dir}/{config.agent_strategy}-{config.model.split('/')[-1]}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{config.user_model}-{config.user_strategy}_{time_str}.json"
+    clean_user_model = config.user_model.replace("/", "-").replace(":", "-")
+    clean_assistant_model = config.model.replace("/", "-").replace(":", "-")
+    ckpt_path = f"{config.log_dir}/{config.agent_strategy}-{clean_assistant_model}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{clean_user_model}-{config.user_strategy}_{time_str}.json"
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
+
+    user_model_custom_config, assistant_model_custom_config = parse_custom_config(config.custom_config) if config.custom_config else ({}, {})
 
     print(f"Loading user with strategy: {config.user_strategy}")
     env = get_env(
@@ -38,11 +54,13 @@ def run(config: RunConfig) -> List[EnvRunResult]:
         user_model=config.user_model,
         user_provider=config.user_model_provider,
         task_split=config.task_split,
+        custom_config=user_model_custom_config,
     )
     agent = agent_factory(
         tools_info=env.tools_info,
         wiki=env.wiki,
         config=config,
+        custom_config=assistant_model_custom_config,
     )
     end_index = (
         len(env.tasks) if config.end_index == -1 else min(config.end_index, len(env.tasks))
@@ -71,6 +89,7 @@ def run(config: RunConfig) -> List[EnvRunResult]:
                 task_split=config.task_split,
                 user_provider=config.user_model_provider,
                 task_index=idx,
+                custom_config=user_model_custom_config,
             )
 
             print(f"Running task {idx}")
@@ -122,7 +141,7 @@ def run(config: RunConfig) -> List[EnvRunResult]:
 
 
 def agent_factory(
-    tools_info: List[Dict[str, Any]], wiki, config: RunConfig
+    tools_info: List[Dict[str, Any]], wiki, config: RunConfig, custom_config: Optional[dict] = None,
 ) -> Agent:
     if config.agent_strategy == "tool-calling":
         # native tool calling
@@ -134,6 +153,7 @@ def agent_factory(
             model=config.model,
             provider=config.model_provider,
             temperature=config.temperature,
+            custom_config=custom_config,
         )
     elif config.agent_strategy == "act":
         # `act` from https://arxiv.org/abs/2210.03629
@@ -146,6 +166,7 @@ def agent_factory(
             provider=config.model_provider,
             use_reasoning=False,
             temperature=config.temperature,
+            custom_config=custom_config,
         )
     elif config.agent_strategy == "react":
         # `react` from https://arxiv.org/abs/2210.03629
@@ -158,6 +179,7 @@ def agent_factory(
             provider=config.model_provider,
             use_reasoning=True,
             temperature=config.temperature,
+            custom_config=custom_config,
         )
     elif config.agent_strategy == "few-shot":
         from tau_bench.agents.few_shot_agent import FewShotToolCallingAgent
@@ -172,6 +194,7 @@ def agent_factory(
             provider=config.model_provider,
             few_shot_displays=few_shot_displays,
             temperature=config.temperature,
+            custom_config=custom_config,
         )
     else:
         raise ValueError(f"Unknown agent strategy: {config.agent_strategy}")

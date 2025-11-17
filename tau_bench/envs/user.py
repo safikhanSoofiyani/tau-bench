@@ -35,17 +35,19 @@ class HumanUserSimulationEnv(BaseUserSimulationEnv):
 
 
 class LLMUserSimulationEnv(BaseUserSimulationEnv):
-    def __init__(self, model: str, provider: str) -> None:
+    def __init__(self, model: str, provider: str, custom_config: Optional[dict] = None) -> None:
         super().__init__()
         self.messages: List[Dict[str, Any]] = []
         self.model = model
         self.provider = provider
         self.total_cost = 0.0
+        self.custom_config = custom_config or {}
         self.reset()
 
     def generate_next_message(self, messages: List[Dict[str, Any]]) -> str:
         res = completion(
-            model=self.model, custom_llm_provider=self.provider, messages=messages
+            model=self.model, custom_llm_provider=self.provider, messages=messages,
+            **self.custom_config
         )
         message = res.choices[0].message
         self.messages.append(message.model_dump())
@@ -86,8 +88,8 @@ Rules:
 
 
 class ReactUserSimulationEnv(LLMUserSimulationEnv):
-    def __init__(self, model: str, provider: str) -> None:
-        super().__init__(model=model, provider=provider)
+    def __init__(self, model: str, provider: str, custom_config: Optional[dict] = None) -> None:
+        super().__init__(model=model, provider=provider, custom_config=custom_config)
         self.reset()
 
     def build_system_prompt(self, instruction: Optional[str]) -> str:
@@ -116,7 +118,8 @@ User Response:
 
     def generate_next_message(self, messages: List[Dict[str, Any]]) -> str:
         res = completion(
-            model=self.model, custom_llm_provider=self.provider, messages=messages
+            model=self.model, custom_llm_provider=self.provider, messages=messages,
+            **self.custom_config
         )
         message = res.choices[0].message
         self.messages.append(message.model_dump())
@@ -154,10 +157,11 @@ User Response:
 
 
 class VerifyUserSimulationEnv(LLMUserSimulationEnv):
-    def __init__(self, model: str, provider: str, max_attempts: int = 3) -> None:
+    def __init__(self, model: str, provider: str, max_attempts: int = 3, custom_config: Optional[dict] = None) -> None:
         self.model = model
         self.provider = provider
         self.max_attempts = max_attempts
+        self.custom_config = custom_config or {}
         self.reset()
 
     def generate_next_message(self, messages: List[Dict[str, Any]]) -> str:
@@ -165,7 +169,8 @@ class VerifyUserSimulationEnv(LLMUserSimulationEnv):
         cur_message = None
         while attempts < self.max_attempts:
             res = completion(
-                model=self.model, custom_llm_provider=self.provider, messages=messages
+                model=self.model, custom_llm_provider=self.provider, messages=messages,
+                **self.custom_config
             )
             cur_message = res.choices[0].message
             self.total_cost = res._hidden_params["response_cost"]
@@ -204,7 +209,7 @@ def map_role_label(role: str) -> str:
 
 
 def verify(
-    model: str, provider: str, response: str, messages: List[Dict[str, Any]]
+    model: str, provider: str, response: str, messages: List[Dict[str, Any]], custom_config: Optional[dict] = None
 ) -> bool:
     transcript = "\n".join(
         [
@@ -228,12 +233,13 @@ Classification:"""
         model=model,
         custom_llm_provider=provider,
         messages=[{"role": "user", "content": prompt}],
+        **(custom_config or {})
     )
     return "true" in res.choices[0].message.content.lower()
 
 
 def reflect(
-    model: str, provider: str, response: str, messages: List[Dict[str, Any]]
+    model: str, provider: str, response: str, messages: List[Dict[str, Any]], custom_config: Optional[dict] = None
 ) -> str:
     transcript = "\n".join(
         [
@@ -262,16 +268,18 @@ Response:
         model=model,
         custom_llm_provider=provider,
         messages=[{"role": "user", "content": prompt}],
+        **(custom_config or {})
     )
     _, response = res.choices[0].message.content.split("Response:")
     return response.strip()
 
 
 class ReflectionUserSimulationEnv(LLMUserSimulationEnv):
-    def __init__(self, model: str, provider: str, max_attempts: int = 2) -> None:
+    def __init__(self, model: str, provider: str, max_attempts: int = 2, custom_config: Optional[dict] = None) -> None:
         self.model = model
         self.provider = provider
         self.max_attempts = max_attempts
+        self.custom_config = custom_config or {}
         self.reset()
 
     def generate_next_message(self, messages: List[Dict[str, Any]]) -> str:
@@ -321,6 +329,7 @@ def load_user(
     user_strategy: Union[str, UserStrategy],
     model: Optional[str] = "gpt-4o",
     provider: Optional[str] = None,
+    custom_config: Optional[dict] = None,
 ) -> BaseUserSimulationEnv:
     if isinstance(user_strategy, str):
         user_strategy = UserStrategy(user_strategy)
@@ -331,23 +340,23 @@ def load_user(
             raise ValueError("LLM user strategy requires a model")
         if provider is None:
             raise ValueError("LLM user strategy requires a model provider")
-        return LLMUserSimulationEnv(model=model, provider=provider)
+        return LLMUserSimulationEnv(model=model, provider=provider, custom_config=custom_config)
     elif user_strategy == UserStrategy.REACT:
         if model is None:
             raise ValueError("React user strategy requires a model")
         if provider is None:
             raise ValueError("React user strategy requires a model provider")
-        return ReactUserSimulationEnv(model=model, provider=provider)
+        return ReactUserSimulationEnv(model=model, provider=provider, custom_config=custom_config)
     elif user_strategy == UserStrategy.VERIFY:
         if model is None:
             raise ValueError("Verify user strategy requires a model")
         if provider is None:
             raise ValueError("Verify user strategy requires a model provider")
-        return VerifyUserSimulationEnv(model=model, provider=provider)
+        return VerifyUserSimulationEnv(model=model, provider=provider, custom_config=custom_config)
     elif user_strategy == UserStrategy.REFLECTION:
         if model is None:
             raise ValueError("Reflection user strategy requires a model")
         if provider is None:
             raise ValueError("Reflection user strategy requires a model provider")
-        return ReflectionUserSimulationEnv(model=model, provider=provider)
+        return ReflectionUserSimulationEnv(model=model, provider=provider, custom_config=custom_config)
     raise ValueError(f"Unknown user strategy {user_strategy}")
