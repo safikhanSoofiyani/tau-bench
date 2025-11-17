@@ -48,7 +48,7 @@ class ToolCallingAgent(Agent):
                 **self.custom_config,
             )
             next_message = res.choices[0].message.model_dump()
-            total_cost += res._hidden_params["response_cost"] or 0
+            # total_cost += res._hidden_params["response_cost"] or 0
             action = message_to_action(next_message)
             env_response = env.step(action)
             reward = env_response.reward
@@ -75,6 +75,7 @@ class ToolCallingAgent(Agent):
                 )
             if env_response.done:
                 break
+        total_cost = 0.0
         return SolveResult(
             reward=reward,
             info=info,

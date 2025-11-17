@@ -86,7 +86,7 @@ class ChatReActAgent(Agent):
                     {"role": "user", "content": obs},
                 ]
             )
-            total_cost += cost
+            # total_cost += cost
             if response.done:
                 break
         return SolveResult(
