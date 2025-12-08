@@ -65,6 +65,7 @@ def parse_args() -> RunConfig:
     parser.add_argument("--end-index", type=int, default=-1, help="Run all tasks if -1")
     parser.add_argument("--task-ids", type=int, nargs="+", help="(Optional) run only the tasks with the given IDs")
     parser.add_argument("--log-dir", type=str, default="results")
+    parser.add_argument("--save-path", type=str, default="scores")
     parser.add_argument(
         "--max-concurrency",
         type=int,
@@ -93,6 +94,7 @@ def parse_args() -> RunConfig:
         end_index=args.end_index,
         task_ids=args.task_ids,
         log_dir=args.log_dir,
+        save_path=args.save_path,
         max_concurrency=args.max_concurrency,
         seed=args.seed,
         shuffle=args.shuffle,
