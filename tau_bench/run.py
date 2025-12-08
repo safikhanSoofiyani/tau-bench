@@ -3,6 +3,7 @@
 import os
 import json
 import random
+import csv
 import traceback
 from math import comb
 import multiprocessing
@@ -41,9 +42,12 @@ def run(config: RunConfig) -> List[EnvRunResult]:
     time_str = datetime.now().strftime("%m%d%H%M%S")
     clean_user_model = config.user_model.replace("/", "-").replace(":", "-")
     clean_assistant_model = config.model.replace("/", "-").replace(":", "-")
-    ckpt_path = f"{config.log_dir}/{config.agent_strategy}-{clean_assistant_model}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{clean_user_model}-{config.user_strategy}_{time_str}.json"
+    ckpt_path = f"{config.log_dir}/{config.agent_strategy}_{config.env}_{clean_assistant_model}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{clean_user_model}-{config.user_strategy}_{time_str}.json"
+    save_path = f"{config.save_path}/{config.agent_strategy}_{config.env}_{clean_assistant_model}-{config.temperature}_range_{config.start_index}-{config.end_index}_user-{clean_user_model}-{config.user_strategy}_{time_str}.csv"
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
+    if not os.path.exists(config.save_path):
+        os.makedirs(config.save_path)
 
     user_model_custom_config, assistant_model_custom_config = parse_custom_config(config.custom_config) if config.custom_config else ({}, {})
 
@@ -133,6 +137,7 @@ def run(config: RunConfig) -> List[EnvRunResult]:
             results.extend(res)
 
     display_metrics(results)
+    save_metrics(results, save_path)
 
     with open(ckpt_path, "w") as f:
         json.dump([result.model_dump() for result in results], f, indent=2)
@@ -224,3 +229,35 @@ def display_metrics(results: List[EnvRunResult]) -> None:
     print("📈 Pass^k")
     for k, pass_hat_k in pass_hat_ks.items():
         print(f"  k={k}: {pass_hat_k}")
+
+
+def save_metrics(results: List[EnvRunResult], save_path: str) -> None:
+
+    def is_successful(reward: float) -> bool:
+        return (1 - 1e-6) <= reward <= (1 + 1e-6)
+
+    num_trials = len(set([r.trial for r in results]))
+    rewards = [r.reward for r in results]
+    avg_reward = sum(rewards) / len(rewards) if rewards else 0.0
+
+    c_per_task_id: dict[int, int] = {}
+    for result in results:
+        if result.task_id not in c_per_task_id:
+            c_per_task_id[result.task_id] = 1 if is_successful(result.reward) else 0
+        else:
+            c_per_task_id[result.task_id] += 1 if is_successful(result.reward) else 0
+
+    pass_hat_ks: dict[int, float] = {}
+    for k in range(1, num_trials + 1):
+        sum_task_pass_hat_k = 0
+        for c in c_per_task_id.values():
+            sum_task_pass_hat_k += comb(c, k) / comb(num_trials, k)
+        pass_hat_ks[k] = sum_task_pass_hat_k / len(c_per_task_id)
+
+    with open(save_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Metric", "Value"])
+        writer.writerow(["Average Reward", avg_reward])
+        for k, pass_hat_k in pass_hat_ks.items():
+            writer.writerow([f"Pass@{k}", pass_hat_k])
+    print(f"📊 Metrics saved\n")

@@ -83,6 +83,7 @@ class RunConfig(BaseModel):
     end_index: int = -1
     task_ids: Optional[List[int]] = None
     log_dir: str = "results"
+    save_path: str = "scores"
     max_concurrency: int = 1
     seed: int = 10
     shuffle: int = 0
