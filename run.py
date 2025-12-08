@@ -6,6 +6,9 @@ from tau_bench.types import RunConfig
 from tau_bench.run import run
 from litellm import provider_list
 from tau_bench.envs.user import UserStrategy
+import dotenv
+
+dotenv.load_dotenv(".env")
 
 
 def parse_config(config_path: str):
